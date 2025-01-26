@@ -133,6 +133,8 @@ async def get_all_tickers():
         
         conn.close()
         
+        tickers.append("Synthetic_Prices")
+
         return {"tickers": tickers}
     
     except sqlite3.Error as e:
@@ -144,12 +146,118 @@ async def get_all_tickers():
         return {"error": "Unexpected error occurred"}
     
 
+
+
+import numpy as np
+import pandas as pd
+
+def generate_gbm(start_price, mu, sigma, n_periods):
+    dt = 1
+    prices = np.zeros(n_periods)
+    prices[0] = start_price
+    for t in range(1, n_periods):
+        drift = (mu - 0.5 * sigma ** 2) * dt
+        shock = sigma * np.sqrt(dt) * np.random.normal()
+        prices[t] = prices[t - 1] * np.exp(drift + shock)
+    return prices
+
+def generate_intra_prices(open_price, close_price, n_steps, sigma):
+    if n_steps < 2:
+        return [open_price, close_price]
+    returns = np.random.normal(0, sigma / np.sqrt(n_steps), n_steps - 1)
+    prices = [open_price]
+    current_price = open_price
+    for r in returns:
+        current_price *= np.exp(r)
+        prices.append(current_price)
+    required_log_return = np.log(close_price / prices[-1])
+    adjustment = required_log_return / (n_steps - 1)
+    adjusted_returns = returns + adjustment
+    prices = [open_price]
+    current_price = open_price
+    for r in adjusted_returns:
+        current_price *= np.exp(r)
+        prices.append(current_price)
+    return prices
+
+def generate_ohlc_data(
+    start_price=100.0,
+    mu=0.01,
+    sigma=0.1,
+    n_periods=252*10,
+    n_intra_steps=100,
+    start_date='2020-01-01'
+):
+    close_prices = generate_gbm(start_price, mu, sigma, n_periods)
+    date_range = pd.date_range(start=start_date, periods=n_periods, freq='B')
+    df = pd.DataFrame(index=date_range, columns=['Open', 'High', 'Low', 'Close'])
+    df['Close'] = close_prices
+    df['Open'] = df['Close'].shift(1)
+    df.loc[df.index[0], 'Open'] = start_price
+
+    for i in range(len(df)):
+        open_p = df.iloc[i]['Open']
+        close_p = df.iloc[i]['Close']
+        intra_prices = generate_intra_prices(open_p, close_p, n_intra_steps, sigma)
+        df.iloc[i, df.columns.get_loc('High')] = np.max(intra_prices)
+        df.iloc[i, df.columns.get_loc('Low')] = np.min(intra_prices)
+
+    # Convert index to date column and reset index
+    df = df.reset_index().rename(columns={'index': 'date'})
+    
+    # Reorder columns to make date first
+    df = df[['date', 'Open', 'High', 'Low', 'Close']]
+    
+    return df.astype({'Open': float, 'High': float, 'Low': float, 'Close': float})
+
 @app.get("/api/prices")
 async def get_prices(
     ticker: str = Query(...,  # Makes parameter required
                         description="Stock ticker symbol",
                         min_length=1)
 ):
+    
+    if ticker == "Synthetic_Prices":
+        test = (generate_ohlc_data())
+        # df = test.history(
+        #     period="max",
+        #     interval="1d",
+        #     auto_adjust=True,
+        #     actions=True
+        # ).reset_index()
+
+
+        print(test.head())
+
+        # Clean and format data
+        df = test.rename(columns={
+            'Open': 'open',
+            'High': 'high', 
+            'Low': 'low',
+            'Close': 'close',
+            'Date': 'date'
+        })
+        
+        # # Add ticker column and convert dates
+        df['ticker'] = ticker
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+
+        # print(df)
+
+        try:
+            processed_df = df.copy()
+            return {
+                "ticker": ticker,
+                "prices": processed_df.assign(
+                    date=processed_df['date']#.dt.strftime('%Y-%m-%d')
+                ).to_dict(orient='records'),
+                "rsi": calculate_rsi(processed_df['close'].tolist()),
+            }
+            
+        except Exception as e:
+            print(f"⚠️ Processing error: {str(e)}")
+            return {"error": f"Data processing failed: {str(e)}"}
+
     # Check if data exists for the ticker
     if not check_ticker_exists(ticker):
         print(f"⚠️ No data found for {ticker}, fetching from Yahoo Finance...")

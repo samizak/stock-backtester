@@ -11,7 +11,7 @@ export default function StockMetadata({ splits }: StockMetadataProps) {
       <p>RSI calculated server-side</p>
       <p>
         Split ratios:{" "}
-        {splits.map((s) => `${s.split_ratio}:1 on ${s.date}`).join(", ")}
+        {splits?.map((s) => `${s.split_ratio}:1 on ${s.date}`).join(", ")}
       </p>
     </div>
   );

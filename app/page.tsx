@@ -9,7 +9,8 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   const router = useRouter();
-  const { ticker, setTicker, stockData, suggestions } = useStockData();
+  const { ticker, setTicker, stockData, suggestions, refreshData } =
+    useStockData();
 
   const handleSearch = (selectedTicker: string) => {
     setTicker(selectedTicker);
@@ -17,6 +18,10 @@ export default function Home() {
   };
 
   if (!stockData) return <div className="text-white">Loading...</div>;
+
+  const handleRegenerate = () => {
+    refreshData();
+  };
 
   return (
     <main className="min-h-screen bg-gray-900 p-8">
@@ -27,13 +32,24 @@ export default function Home() {
           {ticker} Stock Analysis
         </h1>
 
+        {ticker == "Synthetic_Prices" && (
+          <button
+            className="bg-slate-500 p-2 mb-4 rounded-lg font-mono text-lg font-semibold uppercase"
+            onClick={handleRegenerate}
+          >
+            Regenerate
+          </button>
+        )}
+
         <StockChart
           data={stockData.seriesData}
           rsiData={stockData.rsiData}
           splits={stockData.splits}
         />
 
-        <StockMetadata splits={stockData.splits} />
+        {ticker != "Synthetic_Prices" && (
+          <StockMetadata splits={stockData.splits} />
+        )}
       </div>
     </main>
   );

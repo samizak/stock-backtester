@@ -25,7 +25,7 @@ async function getStockData(ticker: string) {
         time: data.prices[index].date,
         value: value,
       })),
-      splits: data.splits.map((s: any) => ({
+      splits: data.splits?.map((s: any) => ({
         date: s.date,
         split_ratio: s.split_ratio,
       })),
@@ -40,6 +40,12 @@ export default function useStockData(initialTicker = "AAPL") {
   const [ticker, setTicker] = useState(initialTicker);
   const [stockData, setStockData] = useState<StockData | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [fetchTrigger, setFetchTrigger] = useState(0); // Add fetch trigger state
+
+  // Add refresh function
+  const refreshData = () => {
+    setFetchTrigger((prev) => prev + 1);
+  };
 
   useEffect(() => {
     const fetchTickers = async () => {
@@ -64,7 +70,7 @@ export default function useStockData(initialTicker = "AAPL") {
       }
     };
     loadData();
-  }, [ticker]);
+  }, [ticker, fetchTrigger]); // Add fetchTrigger to dependencies
 
-  return { ticker, setTicker, stockData, suggestions };
+  return { ticker, setTicker, stockData, suggestions, refreshData }; // Add refreshData to return
 }
