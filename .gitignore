@@ -1,6 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 __pycache__/
+__pycache__/*
 *.py[cod]
 
 # dependencies
@@ -42,3 +43,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+__pycache__/main.cpython-313.pyc
